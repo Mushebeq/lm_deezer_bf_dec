@@ -23,7 +23,12 @@ const DEFAULT_BLOCK_STREAM: usize = DEFAULT_BLOCK * 3;
 type BlowCbcDec = cbc::Decryptor<Blowfish>;
 
 
-fn gen_blowfish_key(id_track: &str) -> Vec<u8> {
+mod lm_dw_deezer {
+	pyo3::import_exception!(lm_dw_deezer.exceptions.no_stream_data, No_Stream_Data);
+}
+
+
+fn _gen_blowfish_key(id_track: &str) -> Vec<u8> {
 	let id_md5 = Md5::digest(id_track);
 	let binding = encode(id_md5);
  	let hex_id_md5 = binding.as_bytes();
@@ -37,18 +42,21 @@ fn gen_blowfish_key(id_track: &str) -> Vec<u8> {
 	bf_key
 }
 
-fn get_raw_bytes(media_url: &str) -> Vec<u8>{
-	let response = get(media_url);
-	let encrypted_song = response.unwrap().bytes().unwrap().to_vec();
-
-	encrypted_song
-}
-
 
 fn _decrypt_track(id_track: &str, media_url: &str, save_path: &str) -> PyResult<()>{
-    let mut encrypted_song = get_raw_bytes(media_url);
+	let response = get(media_url).unwrap();
+
+	if response.status() == 403{
+		return Err(
+			lm_dw_deezer::No_Stream_Data::new_err(
+			(String::from(id_track), String::from(save_path))
+			)
+		);
+	}
+
+	let mut encrypted_song = response.bytes().unwrap().to_vec();
 	let mut file = File::create(save_path).unwrap();
-	let bf_key: Vec<u8> = gen_blowfish_key(id_track);
+	let bf_key: Vec<u8> = _gen_blowfish_key(id_track);
 	let pt: BlowCbcDec = BlowCbcDec::new_from_slices(&bf_key, IV).unwrap();
 
 	// Iterate through encrypted_song chunks
@@ -73,6 +81,6 @@ fn decrypt_track(py: Python<'_>, id_track: &str, media_url: &str, save_path: &st
 /// A Python module implemented in Rust.
 #[pymodule]
 fn lm_deezer_bf_dec(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(decrypt_track, m)?)?;
-    Ok(())
+	m.add_function(wrap_pyfunction!(decrypt_track, m)?)?;
+	Ok(())
 }
