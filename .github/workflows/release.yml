@@ -42,7 +42,7 @@ jobs:
           sccache: true
           container: ${{ matrix.target.container }}
           manylinux: auto
-          before-script-linux: apt install libssl-dev -y
+          before-script-linux: apt-get update -y && apt install libssl-dev -y
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
